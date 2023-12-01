@@ -1,8 +1,7 @@
 from critic_objectives import*
-from Synthetic.dataset import augment, augment_single
-
+from Synthetic.dataset import augment, augment_single, get_intersections, generate_data_concepts, MultiConcept
 import torch.optim as optim
-
+from torch.utils.data import DataLoader
 
 ##############
 #   Models   #
@@ -366,4 +365,84 @@ def train_sup_model(model, train_loader, dataset, num_epoch=50, num_club_iter=5,
                 print('iter: ', _iter, ' i_batch: ', i_batch, ' loss: ', loss.item())
 
     return losses
+
+
+def train_concepts_sup_model(model, train_loader, dataset, num_epoch=50, num_club_iter=5, batch_size=128):
+    non_CLUB_optims, CLUB_optims = model.get_optims()
+    losses = []
+
+    for _iter in range(num_epoch):
+        for i_batch, data_batch in enumerate(train_loader):
+
+            x_batch = data_batch[0].float().cuda()
+            c1_batch = data_batch[1].float().cuda()
+            c2_batch = data_batch[2].float().cuda()
+            y_batch = data_batch[3].float().cuda()
+
+            loss = model(x1_batch, x2_batch, y_batch)
+            losses.append(loss.detach().cpu().numpy())
+
+            for optimizer in non_CLUB_optims:
+                optimizer.zero_grad()
+
+            loss.backward()
+
+            for optimizer in non_CLUB_optims:
+                optimizer.step()
+
+            for _ in range(num_club_iter):
+                data_batch = dataset.sample_batch(batch_size)
+
+                x1_batch = data_batch[0].float().cuda()
+                x2_batch = data_batch[1].float().cuda()
+                y_batch = data_batch[2].float().cuda()
+
+                learning_loss = model.learning_loss(x1_batch, x2_batch, y_batch)
+
+                for optimizer in CLUB_optims:
+                    optimizer.zero_grad()
+
+                learning_loss.backward()
+
+                for optimizer in CLUB_optims:
+                    optimizer.step()
+
+            if i_batch % 100 == 0:
+                print('iter: ', _iter, ' i_batch: ', i_batch, ' loss: ', loss.item())
+
+    return losses
+
+
+if __name__ == '__main__':
+    feature_dim_info = dict()
+    label_dim_info = dict()
+
+    intersections = get_intersections(num_modalities=2)
+
+    feature_dim_info['12'] = 10
+    feature_dim_info['1'] = 6
+    feature_dim_info['2'] = 6
+
+    label_dim_info['12'] = 10
+    label_dim_info['1'] = 6
+    label_dim_info['2'] = 6
+    num_concepts = 2
+    transforms_2concept = None
+    transforms_2hd = None
+    num_data = 30000
+    total_data, total_labels, total_concepts, total_raw_features = generate_data_concepts(num_data, num_concepts,
+                                                                                          feature_dim_info,
+                                                                                          label_dim_info,
+                                                                                          transforms_2concept=None,
+                                                                                          transforms_2hd=None)
+    dataset = MultiConcept(total_data, total_labels, total_concepts)
+    batch_size = 256
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset,
+                                                                [int(0.8 * num_data), num_data - int(0.8 * num_data)])
+
+    train_loader = DataLoader(train_dataset, shuffle=True, drop_last=True,
+                              batch_size=batch_size)
+    test_loader = DataLoader(test_dataset, shuffle=False, drop_last=False,
+                             batch_size=batch_size)
+
 

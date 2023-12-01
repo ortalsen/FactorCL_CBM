@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import math
 from torch.utils.data import Dataset
+from critic_objectives import mlp
 
 #############################
 #  Synthetic Dataset Class  #
@@ -24,6 +25,17 @@ class MultimodalDataset(Dataset):
     sample_idxs = np.random.choice(self.__len__(), batch_size, replace=False)
     samples = self.__getitem__(sample_idxs)
     return samples
+
+
+class MultiConcept(MultimodalDataset):
+    def __init__(self, total_data, total_labels, total_concepts, concept_id):
+        self.data = torch.from_numpy(total_data).float()
+        self.labels = torch.from_numpy(total_labels)
+        self.concepts = torch.from_numpy(total_concepts).float()
+        self.concept_id = concept_id
+
+    def __getitem__(self, idx):
+        return tuple([self.data[idx,:]]+[self.concepts[self.concept_id,idx,:]]+[self.labels[idx]])
   
 
 
@@ -35,6 +47,103 @@ def get_intersections(num_modalities):
     all_intersections += new
   res = list(map(lambda x: ''.join(x), sorted(all_intersections[1:])))
   return sorted(res, key=lambda x: (len(x), x))
+
+def generate_data_concepts(num_data, num_concepts, feature_dim_info, label_dim_info, transform_dim = 100,
+                           transforms_2concept=None, transforms_2hd=None, noise=0.0, pos_prob=0.5):
+    # Standard deviation of generated Gaussian distributions
+    SEP = 0.5
+
+
+
+    total_data = []
+    total_labels = []
+    total_concepts = [[] for i in range(num_concepts)]
+
+    total_raw_features = dict()
+    for k in feature_dim_info:
+        total_raw_features[k] = []
+
+
+    total_dims = 0
+    for d in feature_dim_info.values():
+        total_dims += d
+    
+    # define transform matrices if not provided
+    concepts_dims = [0]*num_concepts
+    for i in range(1, num_concepts+1):
+      for k, d in feature_dim_info.items():
+        if str(i) in k:
+          concepts_dims[i-1] += d
+
+
+    if transforms_2hd is None:
+        transforms_2hd = mlp(total_dims, int(transform_dim/2.0), transform_dim, 2)
+        #transforms_2hd = (np.random.uniform(0.0,1.0,(total_dims, transform_dim)))
+
+    if transforms_2concept is None:
+        transforms_2concept = []
+        for i in range(num_concepts):
+            transforms_2concept.append(np.random.uniform(0.0,1.0,(concepts_dims[i], 1)))
+
+
+    # generate data
+    for data_idx in range(num_data):
+
+        # get Gaussian data vector for each information component (unique, shared)
+        raw_features = dict()
+        for k, d in feature_dim_info.items():
+          raw_features[k] = np.random.multivariate_normal(np.zeros((d,)), np.eye(d)*0.5, (1,))[0]
+
+        # concatenating raw features based on concepts intersection 
+        modality_concept_means = []
+        for i in range(1, num_concepts+1):
+          modality_concept_means.append([])
+          for k, v in raw_features.items():
+            if str(i) in k:
+              modality_concept_means[-1].append(v)
+
+        raw_data = [np.concatenate(modality_concept_means[i]) for i in range(num_concepts)]
+
+        # Transform into concepts
+        concepts_labels = [raw_data[i] @ transforms_2concept[i] for i in range(num_concepts)]
+
+        # Transform into high-dimensional space
+
+        raw_total = np.concatenate([v for v in raw_features.values()])
+        raw_total = torch.tensor(raw_total).float().to(transforms_2hd.device)
+        total_x = transforms_2hd(raw_total).detach().cpu().numpy()
+        #total_x = raw_total @ transforms_2hd
+        total_x += np.random.normal(0, noise, size=total_x.shape)
+
+        # update total data
+        total_data.append(total_x)
+
+        # update total concepts
+        for i in range(num_concepts):
+          total_concepts[i].append(concepts_labels[i])
+
+        # update total raw data
+        for k, f in raw_features.items():
+          total_raw_features[k].append(f)
+
+        # get label vector, d defines what portion of w is relevant to task y
+        label_components = []
+        for k,d in label_dim_info.items():
+          label_components.append(raw_features[k][:d])
+
+        label_vector = np.concatenate(label_components) #+ [np.random.randint(0, 2, 1)]) 
+        label_prob = 1 / (1 + math.exp(-10*np.mean(label_vector)))
+        total_labels.append([int(label_prob >= pos_prob)])
+
+
+    total_data = np.array(total_data)
+    total_labels = np.array(total_labels)
+    total_concepts = np.array(total_concepts)
+    for k, v in total_raw_features.items():
+        total_raw_features[k] = np.array(v)
+    
+    return total_data, total_labels, total_concepts, total_raw_features
+
 
 
 def generate_data(num_data, num_modalities, feature_dim_info, label_dim_info, transforms=None):
