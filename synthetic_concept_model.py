@@ -6,7 +6,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import os
 from critic_objectives import mlp, InfoNCECritic
-
+from tqdm import tqdm
 
 class ConceptCLSUP(nn.Module):
     def __init__(self, x_dim, c_embed_dim, y_ohe_dim, hidden_dim, embed_dim, layers=2, activation='relu', lr=1e-4):
@@ -22,7 +22,7 @@ class ConceptCLSUP(nn.Module):
         self.linears_infonce = mlp(embed_dim, embed_dim, embed_dim, 1, activation)
 
         # critics
-        self.critic = InfoNCECritic(embed_dim+y_ohe_dim, c_embed_dim, self.critic_hidden_dim, self.critic_layers, self.critic_activation)
+        self.critic = InfoNCECritic(embed_dim+y_ohe_dim,1, self.critic_hidden_dim, self.critic_layers, self.critic_activation) # c_embed_dim
 
     def forward(self, x, z_c, y):
         y_ohe = self.ohe(y)
@@ -40,6 +40,8 @@ class ConceptCLSUP(nn.Module):
 
     def get_embedding(self, x):
         return self.backbone(x)
+    
+    
 
 class ConceptEncoder(nn.Module):
     def __init__(self, x_dim, c_embed_dim, yc_dim, hidden_dim, layers=2, activation='relu', lr=1e-4):
@@ -62,7 +64,7 @@ class ConceptEncoder(nn.Module):
 
     def get_embedding(self, x):
         return self.backbone(x)
-
+    
 
 def train_concept_encoder(model, train_loader, val_loader, num_epochs, device, lr, weight_decay, log_interval,
                           save_interval, save_path):
@@ -70,7 +72,9 @@ def train_concept_encoder(model, train_loader, val_loader, num_epochs, device, l
     concept_loss = torch.nn.MSELoss()
     best_val_err = torch.tensor(1e7)
     model.train()
-    for epoch in range(num_epochs):
+    tepoch = tqdm(range(num_epochs))
+    for epoch in tepoch:
+        tepoch.set_description(f"Epoch {epoch}")
         for batch_idx, (data, concept, target) in enumerate(train_loader):
             data, concept = data.to(device), concept.to(device)
             optimizer.zero_grad()
@@ -78,10 +82,11 @@ def train_concept_encoder(model, train_loader, val_loader, num_epochs, device, l
             loss = concept_loss(output, concept)
             loss.backward()
             optimizer.step()
-            if batch_idx % log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tConcept Loss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                           100. * batch_idx / len(train_loader), loss.item()))
+            # if batch_idx % log_interval == 0:
+            #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tConcept Loss: {:.6f}'.format(
+            #         epoch, batch_idx * len(data), len(train_loader.dataset),
+            #                100. * batch_idx / len(train_loader), loss.item()))
+        tepoch.set_postfix(loss=loss.item())
         if epoch % save_interval == 0:
             val_err = 0
             model.eval()
@@ -91,7 +96,7 @@ def train_concept_encoder(model, train_loader, val_loader, num_epochs, device, l
                     output, _ = model(data)
                     val_err += concept_loss(output, concept)
                 val_err = val_err / len(val_loader)
-            print('Val loss: {:.6f}'.format(val_err))
+            # print('Val loss: {:.6f}'.format(val_err))
             if val_err < best_val_err:
                 best_val_err = val_err
             else:
@@ -107,30 +112,33 @@ def train_concept_informed_model(concept_encoder, model, train_loader,val_loader
     concept_encoder.eval()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     best_val_err = torch.tensor(1e7)
-    for epoch in range(num_epochs):
+    tepoch = tqdm(range(num_epochs))
+    for epoch in tepoch:
+        tepoch.set_description(f"Epoch {epoch}")
         model.train()
         for batch_idx, (data, concept, target) in enumerate(train_loader):
             data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
-            _, z_c = concept_encoder(data)
-            loss = model(data, z_c, target)
+            c, z_c = concept_encoder(data)
+            loss = model(data, c, target) #z_c
             loss.backward()
             optimizer.step()
-            if batch_idx % log_interval == 0:
-                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tConcept Loss: {:.6f}'.format(
-                    epoch, batch_idx * len(data), len(train_loader.dataset),
-                           100. * batch_idx / len(train_loader), loss.item()))
+            # if batch_idx % log_interval == 0:
+            #     print('Train Epoch: {} [{}/{} ({:.0f}%)]\tConcept Loss: {:.6f}'.format(
+            #         epoch, batch_idx * len(data), len(train_loader.dataset),
+            #                100. * batch_idx / len(train_loader), loss.item()))
+        tepoch.set_postfix(loss=loss.item())
         if epoch % save_interval == 0:
             val_err = 0
             model.eval()
             with torch.no_grad():
                 for batch_idx, (data, concept, target) in enumerate(val_loader):
                     data, target = data.to(device), target.to(device)
-                    _, z_c = concept_encoder(data)
-                    output = model(data, z_c, target)
+                    c , z_c = concept_encoder(data)
+                    output = model(data, c, target) #z_c
                     val_err += output
                 val_err = val_err / len(val_loader)
-            print('Val loss: {:.6f}'.format(val_err))
+            # print('Val loss: {:.6f}'.format(val_err))
             if val_err < best_val_err:
                 best_val_err = val_err
 
