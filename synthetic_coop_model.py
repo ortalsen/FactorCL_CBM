@@ -17,8 +17,7 @@ class ConceptCLSUP_full_concept(nn.Module):
         self.critic_activation = 'relu'
         self.lr = lr
         self.y_ohe_dim = y_ohe_dim
-        true_c_dim = 1
-        
+
         # encoders
         self.backbone = mlp(x_dim, hidden_dim, embed_dim, layers, activation)
         self.linears_infonce = mlp(embed_dim, embed_dim, embed_dim, 1, activation)
@@ -28,14 +27,14 @@ class ConceptCLSUP_full_concept(nn.Module):
         #                                                  activation) for i in range(2)])
 
         self.linears_infonce_x1x2 = nn.ModuleList([mlp(embed_dim, c_embed_dim, embed_dim, 1, 
-                                                       activation), mlp(true_c_dim, c_embed_dim, embed_dim, 1, 
+                                                       activation), mlp(1, c_embed_dim, embed_dim, 1, 
                                                        activation) ])
         self.linears_club_x1x2_cond = nn.ModuleList([mlp(embed_dim, embed_dim, embed_dim, 1, 
-                                                         activation), mlp(true_c_dim, embed_dim, embed_dim, 1, 
+                                                         activation), mlp(1, embed_dim, embed_dim, 1, 
                                                          activation)])
         
         self.linears_infonce_x1y = mlp(embed_dim, embed_dim, embed_dim, 1, activation)
-        self.linears_infonce_x2y = mlp(true_c_dim, embed_dim, embed_dim, 1, activation) 
+        self.linears_infonce_x2y = mlp(1, embed_dim, embed_dim, 1, activation) 
         
         # self.linears_infonce_x1x2_cond = nn.ModuleList([mlp(embed_dim, embed_dim, embed_dim, 
         #                                                     1, activation) for i in 
@@ -44,38 +43,32 @@ class ConceptCLSUP_full_concept(nn.Module):
         #                                             activation) for i in range(2)])
         
         self.linears_infonce_x1x2_cond = nn.ModuleList([mlp(embed_dim, embed_dim, embed_dim, 
-                                                            1, activation), mlp(true_c_dim, embed_dim, embed_dim, 
+                                                            1, activation), mlp(1, embed_dim, embed_dim, 
                                                             1, activation)])
         self.linears_club_x1x2 = nn.ModuleList([mlp(embed_dim, embed_dim, embed_dim, 1, 
-                                                    activation), mlp(true_c_dim, embed_dim, embed_dim, 1, 
+                                                    activation), mlp(1, embed_dim, embed_dim, 1, 
                                                     activation)])
 
 
         # critics
-        self.critic = MINECritic(#InfoNCECritic(
+        self.critic = InfoNCECritic(
             embed_dim+y_ohe_dim, c_embed_dim, self.critic_hidden_dim, self.critic_layers,
             self.critic_activation
         )
-        self.infonce_x1x2 = MINECritic( #InfoNCECritic(
-            embed_dim, c_embed_dim, self.critic_hidden_dim,
+        self.infonce_x1x2 = InfoNCECritic(embed_dim, c_embed_dim, self.critic_hidden_dim,
                                           self.critic_layers, activation)
-        self.club_x1x2_cond = MINECritic( #CLUBInfoNCECritic(
-            embed_dim + y_ohe_dim, c_embed_dim,
+        self.club_x1x2_cond = CLUBInfoNCECritic(embed_dim + y_ohe_dim, c_embed_dim,
                                                 self.critic_hidden_dim, self.critic_layers,
                                                 activation)
 
-        self.infonce_x1y = MINECritic( #InfoNCECritic(
-            embed_dim, 1, self.critic_hidden_dim, 
+        self.infonce_x1y = InfoNCECritic(embed_dim, 1, self.critic_hidden_dim, 
                                          self.critic_layers, activation) 
-        self.infonce_x2y = MINECritic( #InfoNCECritic
-        c_embed_dim, 1, self.critic_hidden_dim, 
+        self.infonce_x2y = InfoNCECritic(c_embed_dim, 1, self.critic_hidden_dim, 
                                          self.critic_layers, activation) 
-        self.infonce_x1x2_cond = MINECritic( #InfoNCECritic(
-            embed_dim + y_ohe_dim, c_embed_dim, 
+        self.infonce_x1x2_cond = InfoNCECritic(embed_dim + y_ohe_dim, c_embed_dim, 
                                                self.critic_hidden_dim, self.critic_layers, 
                                                activation)
-        self.club_x1x2 = MINECritic( #CLUBInfoNCECritic(
-            embed_dim, c_embed_dim, self.critic_hidden_dim, 
+        self.club_x1x2 = CLUBInfoNCECritic(embed_dim, c_embed_dim, self.critic_hidden_dim, 
                                            self.critic_layers, activation)
 
         self.linears_list = [self.linears_infonce_x1x2, self.linears_club_x1x2_cond,
