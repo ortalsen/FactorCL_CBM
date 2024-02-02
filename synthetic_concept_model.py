@@ -75,7 +75,7 @@ def train_concept_encoder(model, train_loader, val_loader, num_epochs, device, l
     tepoch = tqdm(range(num_epochs))
     for epoch in tepoch:
         tepoch.set_description(f"Epoch {epoch}")
-        for batch_idx, (data, concept, target) in enumerate(train_loader):
+        for batch_idx, (data, concept, target,_) in enumerate(train_loader):
             data, concept = data.to(device), concept.to(device)
             optimizer.zero_grad()
             output, _ = model(data)
@@ -91,7 +91,7 @@ def train_concept_encoder(model, train_loader, val_loader, num_epochs, device, l
             val_err = 0
             model.eval()
             with torch.no_grad():
-                for batch_idx, (data, concept, target) in enumerate(val_loader):
+                for batch_idx, (data, concept, target,_) in enumerate(val_loader):
                     data, concept = data.to(device), concept.to(device)
                     output, _ = model(data)
                     val_err += concept_loss(output, concept)
@@ -112,15 +112,17 @@ def train_concept_informed_model(concept_encoder, model, train_loader,val_loader
     concept_encoder.eval()
     optimizer = optim.Adam(model.parameters(), lr=lr)
     best_val_err = torch.tensor(1e7)
+    mi_eval_list, mi_true_list = [], []
     tepoch = tqdm(range(num_epochs))
     for epoch in tepoch:
         tepoch.set_description(f"Epoch {epoch}")
         model.train()
-        for batch_idx, (data, concept, target) in enumerate(train_loader):
-            data, target = data.to(device), target.to(device)
+        for batch_idx, (data, concept, target, features) in enumerate(train_loader):
+            data, concept, target = data.to(device), concept.to(device), target.to(device)
             optimizer.zero_grad()
             c, z_c = concept_encoder(data)
-            loss = model(data, c, target) #z_c
+            loss = model(data, c, target) #c, z_c #torch.cat([features['2'], features['12']], dim=-1).to(device)
+            mi_eval_list.append(loss)
             loss.backward()
             optimizer.step()
             # if batch_idx % log_interval == 0:
@@ -132,10 +134,10 @@ def train_concept_informed_model(concept_encoder, model, train_loader,val_loader
             val_err = 0
             model.eval()
             with torch.no_grad():
-                for batch_idx, (data, concept, target) in enumerate(val_loader):
-                    data, target = data.to(device), target.to(device)
+                for batch_idx, (data, concept, target, features) in enumerate(val_loader):
+                    data, concept, target = data.to(device), concept.to(device), target.to(device)
                     c , z_c = concept_encoder(data)
-                    output = model(data, c, target) #z_c
+                    output = model(data, c, target) #c, z_c torch.cat([features['2'], features['12']], dim=-1).to(device)
                     val_err += output
                 val_err = val_err / len(val_loader)
             # print('Val loss: {:.6f}'.format(val_err))

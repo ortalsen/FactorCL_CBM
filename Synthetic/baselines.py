@@ -22,9 +22,9 @@ class mlp_multitask(nn.Module):
     def __init__(self, A_dim, hidden_dim, layers, activation, **extra_kwargs):
         super(mlp_multitask, self).__init__()
         # output is scalar score
-        self._f = mlp(A_dim, hidden_dim, 512, layers, activation)
-        self.fc1 = nn.Linear(512, 1)
-        self.fc2 = nn.Linear(512, 1)
+        self._f = mlp(A_dim, hidden_dim, 256, layers, activation)
+        self.fc1 = nn.Linear(256, 1)
+        self.fc2 = nn.Linear(256, 1)
 
     def forward(self, x):
         x = self._f(x)
@@ -43,7 +43,7 @@ def mlp_multitask_train(model, train_loader, val_loader, num_epochs, lr, weight_
     tepoch = tqdm(range(num_epochs))
     for epoch in tepoch:
         tepoch.set_description(f"Epoch {epoch}")
-        for batch_idx, (data, concept, target) in enumerate(train_loader):
+        for batch_idx, (data, concept, target,_) in enumerate(train_loader):
             data, concept, target = data.to(device), concept.to(device), target.to(device)
             optimizer.zero_grad()
             logits, pred_concepts = model(data)
@@ -60,7 +60,7 @@ def mlp_multitask_train(model, train_loader, val_loader, num_epochs, lr, weight_
             val_err = 0
             model.eval()
             with torch.no_grad():
-                for batch_idx, (data, concept, target) in enumerate(val_loader):
+                for batch_idx, (data, concept, target,_) in enumerate(val_loader):
                     data, concept, target = data.to(device), concept.to(device), target.to(device)
                     logits, pred_concepts = model(data)
                     preds = torch.sigmoid(logits)
@@ -85,7 +85,7 @@ def mlp_train(model, train_loader, val_loader, num_epochs, lr, weight_decay, dev
     tepoch = tqdm(range(num_epochs))
     for epoch in tepoch:
         tepoch.set_description(f"Epoch {epoch}")
-        for batch_idx, (data, concept, target) in enumerate(train_loader):
+        for batch_idx, (data, concept, target,_) in enumerate(train_loader):
             data, concept, target = data.to(device), concept.to(device), target.to(device)
             optimizer.zero_grad()
             logits = model(data)
@@ -98,7 +98,7 @@ def mlp_train(model, train_loader, val_loader, num_epochs, lr, weight_decay, dev
             val_err = 0
             model.eval()
             with torch.no_grad():
-                for batch_idx, (data, concept, target) in enumerate(val_loader):
+                for batch_idx, (data, concept, target,_) in enumerate(val_loader):
                     data, concept, target = data.to(device), concept.to(device), target.to(device)
                     logits = model(data)
                     preds = torch.sigmoid(logits)
@@ -122,7 +122,7 @@ def mlp_train_x_c(model, train_loader, val_loader, num_epochs, lr, weight_decay,
     tepoch = tqdm(range(num_epochs))
     for epoch in tepoch:
         tepoch.set_description(f"Epoch {epoch}")
-        for batch_idx, (data, concept, target) in enumerate(train_loader):
+        for batch_idx, (data, concept, target,_) in enumerate(train_loader):
             data, concept, target = data.to(device), concept.to(device), target.to(device)
             optimizer.zero_grad()
             cat_data = torch.cat((data,concept), dim=1)
@@ -138,7 +138,7 @@ def mlp_train_x_c(model, train_loader, val_loader, num_epochs, lr, weight_decay,
             val_err = 0
             model.eval()
             with torch.no_grad():
-                for batch_idx, (data, concept, target) in enumerate(val_loader):
+                for batch_idx, (data, concept, target,_) in enumerate(val_loader):
                     data, concept, target = data.to(device), concept.to(device), target.to(device)
                     cat_data = torch.cat((data,concept),dim=1)
                     logits = model(cat_data)
@@ -162,7 +162,7 @@ def mlp_train_c(model, train_loader, val_loader, num_epochs, lr, weight_decay, d
     tepoch = tqdm(range(num_epochs))
     for epoch in tepoch:
         tepoch.set_description(f"Epoch {epoch}")
-        for batch_idx, (data, concept, target) in enumerate(train_loader):
+        for batch_idx, (data, concept, target,_) in enumerate(train_loader):
             data, concept, target = data.to(device), concept.to(device), target.to(device)
             optimizer.zero_grad()
             pred_concepts = model(data)
@@ -174,7 +174,7 @@ def mlp_train_c(model, train_loader, val_loader, num_epochs, lr, weight_decay, d
             val_err = 0
             model.eval()
             with torch.no_grad():
-                for batch_idx, (data, concept, target) in enumerate(val_loader):
+                for batch_idx, (data, concept, target,_) in enumerate(val_loader):
                     data, concept, target = data.to(device), concept.to(device), target.to(device)
                     pred_concepts = model(data)
                     val_err += loss_func(pred_concepts, concept)
@@ -192,10 +192,10 @@ def baseline_1(train_dataset, test_dataset, num_eval=10, save_path='./results'):
     
 
     train_embeds = torch.stack([sample[0] for sample in train_dataset]).detach().cpu().numpy()
-    train_labels = np.array([sample[-1].item() for sample in  train_dataset])
+    train_labels = np.array([sample[2].item() for sample in  train_dataset])
 
     test_embeds = torch.stack([sample[0] for sample in  test_dataset]).detach().cpu().numpy()
-    test_labels = np.array([sample[-1].item() for sample in  test_dataset])
+    test_labels = np.array([sample[2].item() for sample in  test_dataset])
     acc_list, pre_list, recall_list, f1_list = [], [], [], []
     teval = tqdm(range(num_eval))
     for idx in teval:
@@ -240,10 +240,10 @@ def baseline_1(train_dataset, test_dataset, num_eval=10, save_path='./results'):
 def baseline_2(train_dataset, val_dataset, test_dataset, transform_dim=100000, batch_size=100, num_eval=10, save_path='./results'):
     
     train_embeds = torch.stack([sample[0] for sample in  train_dataset]).detach().cpu().numpy()
-    train_labels = np.array([sample[-1].item() for sample in  train_dataset])
+    train_labels = np.array([sample[2].item() for sample in  train_dataset])
 
     test_embeds = torch.stack([sample[0] for sample in  test_dataset]).detach().cpu().numpy()
-    test_labels = np.array([sample[-1].item() for sample in  test_dataset])
+    test_labels = np.array([sample[2].item() for sample in  test_dataset])
     
 
     acc_list, pre_list, recall_list, f1_list = [], [], [], []
@@ -299,10 +299,10 @@ def baseline_2(train_dataset, val_dataset, test_dataset, transform_dim=100000, b
 
 def baseline_3_A(train_dataset, test_dataset, num_eval=10, save_path='./results'):
     train_embeds = torch.stack([torch.from_numpy(np.concatenate([sample[0], sample[1]])) for sample in  train_dataset]).detach().cpu().numpy()
-    train_labels = np.array([sample[-1].item() for sample in  train_dataset])
+    train_labels = np.array([sample[2].item() for sample in  train_dataset])
 
     test_embeds = torch.stack([torch.from_numpy(np.concatenate([sample[0], sample[1]])) for sample in  test_dataset]).detach().cpu().numpy()
-    test_labels = np.array([sample[-1].item() for sample in  test_dataset])
+    test_labels = np.array([sample[2].item() for sample in  test_dataset])
     acc_list, pre_list, recall_list, f1_list = [], [], [], []
     teval = tqdm(range(num_eval))
     for idx in teval:
@@ -347,7 +347,7 @@ def baseline_3_A(train_dataset, test_dataset, num_eval=10, save_path='./results'
 def baseline_3_B(train_dataset, val_dataset, test_dataset,  transform_dim=100000, batch_size=100, num_eval=10, save_path='./results'):
     
     test_embeds = torch.stack([torch.from_numpy(np.concatenate([sample[0], sample[1]])) for sample in  test_dataset]).detach().cpu().numpy()
-    test_labels = np.array([sample[-1].item() for sample in  test_dataset])
+    test_labels = np.array([sample[2].item() for sample in  test_dataset])
     
     acc_list, pre_list, recall_list, f1_list = [], [], [], []
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -402,7 +402,7 @@ def baseline_4(train_dataset, val_dataset, test_dataset, transform_dim=100000, b
     
     test_embeds = torch.stack([sample[0] for sample in  test_dataset]).detach().cpu().numpy()
     test_concepts = torch.tensor([sample[1].item() for sample in  test_dataset]).unsqueeze(1)
-    test_labels = np.array([sample[-1].item() for sample in  test_dataset])
+    test_labels = np.array([sample[2].item() for sample in  test_dataset])
     
     acc_list, pre_list, recall_list, f1_list = [], [], [], []
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -451,13 +451,13 @@ def baseline_4(train_dataset, val_dataset, test_dataset, transform_dim=100000, b
     
     return df_results
 
-
+from collections import OrderedDict
 
 def baseline_5(train_dataset, val_dataset, test_dataset, transform_dim=100000, batch_size=100, num_eval=10, save_path='./results'):
     
     test_embeds = torch.stack([sample[0] for sample in  test_dataset]).detach().cpu().numpy()
     test_concepts = torch.tensor([sample[1].item() for sample in  test_dataset]).unsqueeze(1)
-    test_labels = np.array([sample[-1].item() for sample in  test_dataset])
+    test_labels = np.array([sample[2].item() for sample in  test_dataset])
 
     
     acc_list, pre_list, recall_list, f1_list = [], [], [], []
@@ -469,10 +469,12 @@ def baseline_5(train_dataset, val_dataset, test_dataset, transform_dim=100000, b
         val_loader = DataLoader(val_dataset, shuffle=True, batch_size=batch_size, drop_last=True)
         test_loader = DataLoader(test_dataset, shuffle=False, drop_last=False)
         
-        backbone = mlp(transform_dim, 512, 1, layers=2, activation='relu')
-        trained_backbone = mlp_train_c(backbone, train_loader, val_loader, 1000, 1e-5, 1e-5,'cuda', 100, 100)
-        FC = mlp(1, 256, 1, 1, activation= 'relu')
-        model = nn.Sequential(trained_backbone, FC)
+        backbone = mlp(transform_dim, 512, 512, layers=2, activation='relu')
+        FC = mlp(512, 256, 1, 1, activation= 'relu')
+        pretrain_model = model = nn.Sequential(OrderedDict(backbone=backbone, FC=FC))
+        pretrain_model = mlp_train_c(pretrain_model, train_loader, val_loader, 1000, 1e-5, 1e-5,'cuda', 100, 100)
+        FC = mlp(512, 256, 1, 1, activation= 'relu')
+        model = nn.Sequential(pretrain_model.backbone, FC)
         trained_model = mlp_train(model, train_loader, val_loader, 1000, 1e-5, 1e-5,'cuda', 100, 100)
         
         out = trained_model(torch.tensor(test_embeds).to(device))

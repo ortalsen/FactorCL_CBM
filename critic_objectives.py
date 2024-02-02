@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import scipy.spatial as ss
+import scipy.stats as sst
+from scipy.special import digamma,gamma
+from math import log,pi,exp
+import math
 
 
 ####################
@@ -253,3 +258,163 @@ class SupConLoss(nn.Module):
         loss = loss.view(anchor_count, batch_size).mean()
 
         return loss
+
+    
+#################################################### KSG Estimators ####################################################
+
+class Kraskov_critic(nn.Module):
+    def __init__(self, diagamma_=None, **extra_kwargs):
+        super(Kraskov_critic, self).__init__()
+        # self.diagamma_ = mlp(1, hidden_dim, 1, layers, activation)
+
+    def forward(self, x_samples, y_samples, k=4):
+        assert len(x_samples)==len(y_samples), "Lists should have same length"
+        assert k <= len(x_samples)-1, "Set k smaller than num. samples - 1"
+
+        N = torch.tensor(len(x_samples))
+        dx = torch.tensor(len(x_samples[0]))     
+        dy = torch.tensor(len(y_samples[0]))
+        k = torch.tensor(k)
+        data = torch.cat((x_samples,y_samples),dim=1)
+ 
+        tree_x = ss.cKDTree(x_samples.cpu().detach())
+        tree_y = ss.cKDTree(y_samples.cpu().detach())
+
+        dist = torch.cdist(data,data,p=float('inf'))
+        knn_dis = torch.topk(dist, k).values[:,-1]
+        knn_dis = knn_dis.requires_grad_(True)
+        ans_xy = -digamma(k) + digamma(N) + (dx+dy)*log(2) #2*log(N-1) - digamma(N) #+ vd(dx) + vd(dy) - vd(dx+dy)
+        ans_x = digamma(N) + dx*log(2)
+        ans_y = digamma(N) + dy*log(2)
+        
+        ans_xy = ans_xy.requires_grad_(True)
+        ans_x = ans_x.requires_grad_(True)
+        ans_y = ans_y.requires_grad_(True)
+        
+
+        for i in range(N):
+            ans_xy = ans_xy + (dx+dy)*log(knn_dis[i])/N
+
+            ans_x = ans_x -digamma(len(tree_x.query_ball_point(x_samples[i].detach().cpu().numpy(),knn_dis[i].detach().cpu().numpy()-1e15,
+                                                               p=float('inf'))))/N+dx*log(knn_dis[i])/N
+            ans_y = ans_y - digamma(len(tree_y.query_ball_point(y_samples[i].detach().cpu().numpy(),knn_dis[i].detach().cpu().numpy()-1e15,
+                                                                p=float('inf'))))/N+dy*log(knn_dis[i])/N
+        answer = ans_x+ans_y-ans_xy
+        
+        return answer
+    
+class KSG_critic(nn.Module):
+    def __init__(self, diagamma_=None, **extra_kwargs):
+        super(KSG_critic, self).__init__()
+        # self.diagamma_ = mlp(x_dim, hidden_dim, embed_dim, layers, activation)
+    
+    def vd(self, d,q):
+        # Compute the volume of unit l_q ball in d dimensional space
+        if (q==float('inf')):
+            return d*log(2)
+        return d*log(2*gamma(1+1.0/q)) - log(gamma(1+d*1.0/q))
+
+    def forward(self, x_samples, y_samples, k=5, q=float('inf')):
+        assert len(x_samples)==len(y_samples), "Lists should have same length"
+        assert k <= len(x_samples)-1, "Set k smaller than num. samples - 1"
+        N = len(x_samples)
+        dx = len(x_samples[0])       
+        dy = len(y_samples[0])
+        data = torch.cat((x_samples,y_samples),dim=1)
+
+        # tree_xy = ss.cKDTree(data.detach().cpu().numpy())
+        tree_x = ss.cKDTree(x_samples.detach().cpu().numpy())
+        tree_y = ss.cKDTree(y_samples.detach().cpu().numpy())
+        
+        dist = torch.cdist(data,data,p=float('inf'))
+        knn_dis = torch.topk(dist, k).values[:,-1]
+        knn_dis = knn_dis.requires_grad_(True)
+        
+        # knn_dis = [tree_xy.query(point,k+1,p=q)[0][k] for point in data]
+        ans_xy = torch.tensor(-digamma(k) + log(N) + self.vd(dx+dy,q))
+        ans_x = torch.tensor(log(N) + self.vd(dx,q))
+        ans_y = torch.tensor(log(N) + self.vd(dy,q))
+        
+        ans_xy = ans_xy.requires_grad_(True)
+        ans_x = ans_x.requires_grad_(True)
+        ans_y = ans_y.requires_grad_(True)
+        
+        for i in range(N):
+            ans_xy = ans_xy + (dx+dy)*log(knn_dis[i])/N
+            ans_x = ans_x - log(len(tree_x.query_ball_point(x_samples[i].detach().cpu().numpy(),knn_dis[i].detach().cpu().numpy()+1e-15,
+                                                            p=q))-1)/N+dx*log(knn_dis[i])/N
+            ans_y = ans_y - log(len(tree_y.query_ball_point(y_samples[i].detach().cpu().numpy(),knn_dis[i].detach().cpu().numpy()+1e-15,
+                                                            p=q))-1)/N+dy*log(knn_dis[i])/N        
+        return ans_x+ans_y-ans_xy
+    
+################################################## MINE Neural Estimator ##################################################
+
+EPS = 1e-6
+class EMALoss(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, running_ema):
+        ctx.save_for_backward(input, running_ema)
+        input_log_sum_exp = input.exp().mean().log()
+
+        return input_log_sum_exp
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, running_mean = ctx.saved_tensors
+        grad = grad_output * input.exp().detach() / \
+            (running_mean + EPS) / input.shape[0]
+        return grad, None
+
+
+def ema(mu, alpha, past_ema):
+    return alpha * mu + (1.0 - alpha) * past_ema
+
+
+def ema_loss(x, running_mean, alpha):
+    t_exp = torch.exp(torch.logsumexp(x, 0) - math.log(x.shape[0])).detach()
+    if running_mean == 0:
+        running_mean = t_exp
+    else:
+        running_mean = ema(t_exp, alpha, running_mean.item())
+    t_log = EMALoss.apply(x, running_mean)
+
+    # Recalculate ema
+
+    return t_log, running_mean
+
+class MINECritic(nn.Module):
+    def __init__(self, A_dim, Z_dim, hidden_dim, layers, activation='relu', alpha=0.01):
+        super().__init__()
+        self.running_mean = 0
+        self.loss = 'mine'
+        self.alpha = alpha
+      
+        self.T = mlp(A_dim + Z_dim, hidden_dim, 1, layers, activation)
+
+    def forward(self, x, z, z_marg=None):
+        if z_marg is None:
+            z_marg = z[torch.randperm(x.shape[0])]
+
+        t = self.T(torch.cat([x, z], dim=1)).mean()
+        t_marg = self.T(torch.cat([x, z_marg], dim=1))
+
+        if self.loss in ['mine']:
+            second_term, self.running_mean = ema_loss(
+                t_marg, self.running_mean, self.alpha)
+        elif self.loss in ['fdiv']:
+            second_term = torch.exp(t_marg - 1).mean()
+        elif self.loss in ['mine_biased']:
+            second_term = torch.logsumexp(
+                t_marg, 0) - math.log(t_marg.shape[0])
+
+        return -t + second_term
+
+    def mi(self, x, z, z_marg=None):
+        if isinstance(x, np.ndarray):
+            x = torch.from_numpy(x).float()
+        if isinstance(z, np.ndarray):
+            z = torch.from_numpy(z).float()
+
+        with torch.no_grad():
+            mi = -self.forward(x, z, z_marg)
+        return mi
