@@ -1,0 +1,12 @@
+_target_: nets.LEACE_end2end # nets.LEACE #nets.RLACE #nets.CLUBInfoNCE #
+
+encoder: '<ENCODER>'
+in_dim: 2352 #28*28*3
+hidden_dim: 512
+embed_dim: 128
+layers: 2
+activation: 'relu'
+lr: 0.0001
+num_classes: 10
+# alpha_rate: 0.05
+# lamb: 0.7

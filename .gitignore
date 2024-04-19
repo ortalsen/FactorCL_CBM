@@ -7,5 +7,4 @@ ColoredMNIST_2/
 ._*
 experiments/
 wandb/
-hydra/
 cm.png

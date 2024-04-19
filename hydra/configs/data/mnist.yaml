@@ -1,0 +1,4 @@
+_target_: dataset.c2.MyDataModule2 #dataset.colored_mnist.MyDataModule #
+
+batch_size:  128
+

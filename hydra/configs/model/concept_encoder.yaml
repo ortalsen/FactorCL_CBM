@@ -1,0 +1,9 @@
+_target_: nets.ConceptEncoder
+
+x_dim: 2352
+c_embed_dim: 128
+c_dim: 3
+hidden_dim: 512
+layers: 2
+activation: 'relu'
+lr: 0.001 #0.0001

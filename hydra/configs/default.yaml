@@ -1,0 +1,20 @@
+_version: 1.1
+core:
+  _version: 0.0.1
+  tags:
+    - colored_mnist
+    
+defaults:
+- data: mnist
+- model: mlp #cnn #
+- model@concept_model: concept_encoder
+- model@informed_model: informed_encoder
+- model@final_model: final_informed
+- optim: default
+- hydra: default
+- train: default
+- wandb: default
+- sweep: leace_e2e
+- _self_
+
+num_eval: 1

@@ -1,0 +1,5 @@
+_target_: nets.SmallMLP
+
+input_dim: 2352 #28*28*3
+hidden_dim: 128
+num_classes: 10

@@ -1,0 +1,45 @@
+# reproducibility
+deterministic: True
+random_seed: 80
+
+pl_trainer:
+  fast_dev_run: False # Enable this for debug purposes
+  accelerator: gpu
+  devices: 1
+  precision: 32
+  max_epochs: 60 #60
+  # check_val_every_n_epoch: 1
+  # limit_train_batches: 500
+  # #val_check_interval: 100
+  # limit_val_batches: 100
+  # limit_test_batches: 100
+  # log_every_n_steps: 10
+  # num_sanity_val_steps: 10
+
+informed_trainer:
+  fast_dev_run: False # Enable this for debug purposes
+  accelerator: gpu
+  devices: 1
+  precision: 32
+  max_epochs: 40 #60
+  # check_val_every_n_epoch: 1
+  # limit_train_batches: 500
+  # #val_check_interval: 100
+  # limit_val_batches: 100
+  # limit_test_batches: 100
+  # log_every_n_steps: 10
+  # num_sanity_val_steps: 10
+
+final_trainer:
+  fast_dev_run: False # Enable this for debug purposes
+  accelerator: gpu
+  devices: 1
+  precision: 32
+  max_epochs: 60 #60
+  # check_val_every_n_epoch: 1
+  # limit_train_batches: 500
+  # #val_check_interval: 100
+  # limit_val_batches: 100
+  # limit_test_batches: 100
+  # log_every_n_steps: 10
+  # num_sanity_val_steps: 10
