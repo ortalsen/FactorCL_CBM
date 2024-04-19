@@ -2,3 +2,10 @@
 *.csv
 *checkpoint.py
 *checkpoint.ipynb
+ColoredMNIST/
+ColoredMNIST_2/
+._*
+experiments/
+wandb/
+hydra/
+cm.png
