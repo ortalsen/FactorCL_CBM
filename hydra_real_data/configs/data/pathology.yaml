@@ -1,0 +1,4 @@
+_target_: dataset.pathology.PathologyDataModule
+
+batch_size:  128
+

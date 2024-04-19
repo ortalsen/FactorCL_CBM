@@ -1,0 +1,9 @@
+_target_: nets.ConceptEncoder
+
+backbone: 
+  _target_: nets.backbones.resnet18_backbone
+  pretrained: True
+
+cfg_optim: '<OPTIM>'
+num_classes: 2
+

@@ -1,0 +1,6 @@
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: True
+  lr: 1e-4
+
+use_lr_scheduler: False

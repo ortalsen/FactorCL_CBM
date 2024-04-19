@@ -1,0 +1,18 @@
+_version: 1.1
+core:
+  _version: 0.0.1
+  tags:
+    - digital_pathology
+    
+defaults:
+- data: pathology
+- model@concept_model: concept_encoder
+- model@informed_model: informed_encoder
+- optim@concept_optim: concept_optim
+- optim@informed_optim: informed_optim
+- hydra: default
+- train: default
+- wandb: default
+- _self_
+
+num_eval: 1
