@@ -7,7 +7,7 @@ pl_trainer:
   accelerator: gpu
   devices: 1
   precision: 32
-  max_epochs: 60 #60
+  max_epochs: 1 #60
   # check_val_every_n_epoch: 1
   # limit_train_batches: 500
   # #val_check_interval: 100
@@ -21,7 +21,7 @@ informed_trainer:
   accelerator: gpu
   devices: 1
   precision: 32
-  max_epochs: 40 #60
+  max_epochs: 1 #60
   # check_val_every_n_epoch: 1
   # limit_train_batches: 500
   # #val_check_interval: 100
@@ -29,3 +29,4 @@ informed_trainer:
   # limit_test_batches: 100
   # log_every_n_steps: 10
   # num_sanity_val_steps: 10
+

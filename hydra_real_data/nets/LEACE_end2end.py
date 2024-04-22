@@ -47,6 +47,7 @@ class LEACE_end2end(pl.LightningModule):
     def forward(self, x, z_c):
 
         z_x = self.backbone(x)
+        z_x = z_x.view(z_x.shape[0], -1)
         logits_pre = self.pre_project(z_x)
 
         self.fitter.update(z_x, z_c)
@@ -55,8 +56,7 @@ class LEACE_end2end(pl.LightningModule):
         logits = self.linears_head(z_x_hat) 
         self.fitter_2.update(logits, z_c)
         logits_hat = self.fitter_2.eraser(logits)
-
-        joint_logits = self.joint_head(torch.cat([z_x,z_c], dim=1))
+        joint_logits = self.joint_head(torch.cat([z_x,z_c.reshape(z_x.shape)], dim=1))
 
         return logits_hat, logits_pre, joint_logits
         
@@ -76,7 +76,7 @@ class LEACE_end2end(pl.LightningModule):
         return optimizer_informed
 
     def training_step(self, batch, batch_idx):
-        x, y, c = batch[0], batch[1], batch[2]
+        x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
         c_logits, z_embed = self.encoder(x)
         logits_p, logits, final_logits = self(x,z_embed) 
         loss_1 = F.cross_entropy(logits_p, y)
@@ -95,7 +95,7 @@ class LEACE_end2end(pl.LightningModule):
         return super().on_train_epoch_end()
 
     def validation_step(self, batch, batch_idx):
-        x, y, c = batch[0], batch[1], batch[2]
+        x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
         c_logits, z_embed = self.encoder(x)
         logits_p, logits, final_logits = self(x,z_embed) 
         loss_1 = F.cross_entropy(logits_p, y)
@@ -107,7 +107,7 @@ class LEACE_end2end(pl.LightningModule):
         self.log('informed_encoder/val_loss', loss)
 
     def test_step(self, batch, batch_idx):
-        x, y, c = batch[0], batch[1], batch[2]
+        x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
         c_logits, z_embed = self.encoder(x)
         logits_p, logits, final_logits = self(x,z_embed) 
         loss_1 = F.cross_entropy(logits_p, y)

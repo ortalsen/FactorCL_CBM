@@ -1,8 +1,7 @@
-_target_: nets.ConceptEncoder
+_target_: nets.Supervised
 
 backbone: 
   _target_: nets.backbones.resnet18_backbone
 
 cfg_optim: '<OPTIM>'
-num_classes: 2
-
+num_classes: 3

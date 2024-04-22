@@ -1,4 +1,6 @@
 _target_: dataset.pathology.PathologyDataModule
 
 batch_size:  128
+data_dir: '/home/abdelrah/pathology_data/raw_240' #this is the absolute path because the data isn't on project dir
+annotations_csv: '/home/abdelrah/pathology_data/merged_annotations_count.csv'
 
