@@ -1,6 +1,13 @@
-_target_: dataset.pathology.PathologyDataModule
+main:
+  _target_: dataset.pathology.PathologyDataModule_imbalanced
 
-batch_size:  128
-data_dir: '/home/abdelrah/pathology_data/raw_240' #this is the absolute path because the data isn't on project dir
-annotations_csv: '/home/abdelrah/pathology_data/merged_annotations_count.csv'
+  batch_size:  128
+  data_dir: '/home/abdelrah/pathology_data/raw_240' #this is the absolute path because the data isn't on project dir
+  annotations_csv: '/home/abdelrah/pathology_data/merged_annotations_count.csv'
 
+concept:
+  _target_: dataset.pathology.PathologyDataModule_ConceptEncoder_imbalanced
+
+  batch_size:  128
+  data_dir: '/home/abdelrah/pathology_data/raw_240' #this is the absolute path because the data isn't on project dir
+  annotations_csv: '/home/abdelrah/pathology_data/merged_annotations_count.csv'

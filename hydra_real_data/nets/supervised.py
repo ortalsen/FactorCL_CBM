@@ -34,9 +34,7 @@ class Supervised(pl.LightningModule):
         self.params = self.parameters()
         concept_optimizer =  self.cfg_optim.optimizer(params=self.params)
         if  self.cfg_optim.use_lr_scheduler:
-            scheduler = hydra.utils.instantiate(
-                 self.cfg_optim.lr_scheduler, optimizer=concept_optimizer
-            )
+            scheduler = self.cfg_optim.lr_scheduler(optimizer=concept_optimizer)
             return [concept_optimizer], [scheduler]
         return concept_optimizer
 

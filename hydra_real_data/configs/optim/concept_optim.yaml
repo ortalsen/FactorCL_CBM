@@ -7,5 +7,5 @@ use_lr_scheduler: False
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
   _partial_: True
-  gamma: 0.1
-  step: 10
+  gamma: 0.05
+  step_size: 1

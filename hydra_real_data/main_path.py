@@ -26,8 +26,12 @@ def main(cfg):
 
     if cfg.informed_exp:
         
-        run_name = str(cfg.informed_model._target_) + '_digital_pathology_' + time.strftime("_%Y_%m_%d") 
-        run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, name=run_name)
+        run_name = str(cfg.informed_model._target_) + '_digital_pathology_' + time.strftime("_%Y_%m_%d") + '_c_logits'
+        # print(cfg)
+        run = wandb.init(entity=cfg.wandb.entity,
+                         project=cfg.wandb.project,
+                         config={key: value for key, value in cfg.items() if key != "wandb"},
+                         name=run_name)
         test_metrics_list = []
 
         # Hydra run directory
@@ -36,7 +40,7 @@ def main(cfg):
 
         for _ in range(cfg.num_eval):
 
-            datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data)
+            datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data.concept)
             
 
             #Concept Encoder Model
@@ -45,9 +49,9 @@ def main(cfg):
 
             early_stopping_callback = EarlyStopping(
             monitor='concept_encoder/val_loss',  
-            patience=5,           
+            patience=3,           
             mode='min',            
-            min_delta=0.1
+            min_delta=0.0
             )
             
             trainer = pl.Trainer(
@@ -61,18 +65,19 @@ def main(cfg):
             concept_model: pl.LightningModule = hydra.utils.instantiate(cfg.concept_model, cfg_optim=cfg.concept_optim)
 
             trainer.fit(model=concept_model, datamodule=datamodule)
-            
+            del trainer
 
 
+            datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data.main)
             #Informed Model
             hydra.utils.log.info(f"Instantiating <" f"{cfg.informed_model._target_}>")
             hydra.utils.log.info(f"Training for {cfg.train.pl_trainer.max_epochs} epochs.")
 
             early_stopping_callback = EarlyStopping(
             monitor='informed_encoder/val_loss', 
-            patience=5,         
+            patience=1,         
             mode='min',            
-            min_delta=0.1
+            min_delta=0.0
             )
             trainer = pl.Trainer(
                 default_root_dir=hydra_dir,
@@ -90,6 +95,9 @@ def main(cfg):
             hydra.utils.log.info(f"Starting testing!")
             metrics = trainer.test(model=informed_model, datamodule=datamodule)
             test_metrics_list.append(metrics)
+            del trainer
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
 
         # Calculate mean and confidence intervals for each metric
@@ -122,7 +130,10 @@ def main(cfg):
         """
         
         run_name = str(cfg.baseline._target_) + '_digital_pathology_' + time.strftime("_%Y_%m_%d") 
-        run = wandb.init(entity=cfg.wandb.entity, project=cfg.wandb.project, name=run_name)
+        run = wandb.init(entity=cfg.wandb.entity,
+                         project=cfg.wandb.project,
+                         config={key: value for key, value in cfg.items() if key != "wandb"},
+                         name=run_name)
         test_metrics_list = []
 
         # Hydra run directory
@@ -131,22 +142,22 @@ def main(cfg):
 
         for _ in range(cfg.num_eval):
 
-            datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data)
+            datamodule: pl.LightningDataModule = hydra.utils.instantiate(cfg.data.main)
 
             #Baseline
             hydra.utils.log.info(f"Instantiating <" f"{cfg.baseline._target_}>")
-            hydra.utils.log.info(f"Training for {cfg.train.pl_trainer.max_epochs} epochs.")
+            hydra.utils.log.info(f"Training for {cfg.train.informed_trainer.max_epochs} epochs.")
 
             early_stopping_callback = EarlyStopping(
             monitor='final_model/val_loss', 
-            patience=5,         
+            patience=1,         
             mode='min',            
-            min_delta=0.1
+            min_delta=0.0
             )
             trainer = pl.Trainer(
                 default_root_dir=hydra_dir,
                 deterministic="warn" if cfg.train.deterministic else False,
-                **cfg.train.pl_trainer,
+                **cfg.train.informed_trainer,
                 callbacks=[early_stopping_callback],
                 inference_mode=False,
             )

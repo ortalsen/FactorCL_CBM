@@ -7,5 +7,5 @@ encoder: '<ENCODER>'
 cfg_optim: '<OPTIM>'
 num_classes: 3
 alpha_rate: 0.05
-lamb: 0.5
+lamb: 0.5 #0.5
 device: 'cuda'

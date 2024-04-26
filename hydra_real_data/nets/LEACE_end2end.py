@@ -29,11 +29,11 @@ class LEACE_end2end(pl.LightningModule):
 
         self.linears_head = nn.Linear(self.num_features, self.num_classes )
         self.pre_project = nn.Linear(self.num_features, self.num_classes )
-        self.joint_head = nn.Linear(self.num_features + self.encoder_features, self.num_classes) 
+        self.joint_head = nn.Linear(self.num_features + 1, self.num_classes) #self.encoder_features
 
 
-        self.fitter = LeaceFitter(self.num_features, self.encoder_features, dtype=torch.float, device=device)  
-        self.fitter_2 = LeaceFitter(self.num_classes , self.encoder_features, dtype=torch.float, device=device) 
+        self.fitter = LeaceFitter(self.num_features, 1, dtype=torch.float, device=device)  #self.encoder_features,
+        self.fitter_2 = LeaceFitter(self.num_classes , 1, dtype=torch.float, device=device) #self.encoder_features
         
         self.test_accuracy = torchmetrics.Accuracy("multiclass", num_classes=self.num_classes)
         self.test_precision = torchmetrics.Precision(task="multiclass", average='macro', num_classes=self.num_classes)
@@ -56,7 +56,7 @@ class LEACE_end2end(pl.LightningModule):
         logits = self.linears_head(z_x_hat) 
         self.fitter_2.update(logits, z_c)
         logits_hat = self.fitter_2.eraser(logits)
-        joint_logits = self.joint_head(torch.cat([z_x,z_c.reshape(z_x.shape)], dim=1))
+        joint_logits = self.joint_head(torch.cat([z_x_hat,z_c.view(z_x.shape[0], -1)], dim=1))
 
         return logits_hat, logits_pre, joint_logits
         
@@ -66,21 +66,19 @@ class LEACE_end2end(pl.LightningModule):
 
 
     def configure_optimizers(self):
-        self.params = list(self.backbone.parameters()) + list(self.linears_head.parameters()) + list(self.pre_project.parameters())
+        self.params = list(self.backbone.parameters()) + list(self.linears_head.parameters()) + list(self.pre_project.parameters()) + list(self.joint_head.parameters())
         optimizer_informed =  self.cfg_optim.optimizer(params=self.params)
         if  self.cfg_optim.use_lr_scheduler:
-            scheduler = hydra.utils.instantiate(
-                 self.cfg_optim.lr_scheduler, optimizer=optimizer_informed
-            )
+            scheduler = self.cfg_optim.lr_scheduler(optimizer=optimizer_informed)
             return [optimizer_informed], [scheduler]
         return optimizer_informed
 
     def training_step(self, batch, batch_idx):
         x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
         c_logits, z_embed = self.encoder(x)
-        logits_p, logits, final_logits = self(x,z_embed) 
-        loss_1 = F.cross_entropy(logits_p, y)
-        loss_2 = F.cross_entropy(logits, y)
+        logits_post, logits_pre, final_logits = self(x,c_logits)#z_embed) 
+        loss_1 = F.cross_entropy(logits_post, y)
+        loss_2 = F.cross_entropy(logits_pre, y)
         leace_loss = loss_1 + self.alpha * loss_2
         final_loss = F.cross_entropy(final_logits,y)
         loss = final_loss + self.lamb*leace_loss
@@ -97,9 +95,9 @@ class LEACE_end2end(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
         c_logits, z_embed = self.encoder(x)
-        logits_p, logits, final_logits = self(x,z_embed) 
-        loss_1 = F.cross_entropy(logits_p, y)
-        loss_2 = F.cross_entropy(logits, y)
+        logits_post, logits_pre, final_logits = self(x,c_logits)#z_embed) 
+        loss_1 = F.cross_entropy(logits_post, y)
+        loss_2 = F.cross_entropy(logits_pre, y)
         leace_loss = loss_1 + self.alpha * loss_2
         final_loss = F.cross_entropy(final_logits,y)
         loss = final_loss + self.lamb*leace_loss
@@ -109,9 +107,9 @@ class LEACE_end2end(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
         c_logits, z_embed = self.encoder(x)
-        logits_p, logits, final_logits = self(x,z_embed) 
-        loss_1 = F.cross_entropy(logits_p, y)
-        loss_2 = F.cross_entropy(logits, y)
+        logits_post, logits_pre, final_logits = self(x,c_logits)#z_embed) 
+        loss_1 = F.cross_entropy(logits_post, y)
+        loss_2 = F.cross_entropy(logits_pre, y)
         leace_loss = loss_1 + self.alpha * loss_2
         final_loss = F.cross_entropy(final_logits,y)
         loss = final_loss + self.lamb*leace_loss
