@@ -26,8 +26,7 @@ def main(cfg):
 
     if cfg.informed_exp:
         
-        run_name = str(cfg.informed_model._target_) + '_digital_pathology_' + time.strftime("_%Y_%m_%d") + '_c_logits'
-        # print(cfg)
+        run_name = str(cfg.informed_model._target_) + '_'+ '_'.join(cfg.core.tags) + time.strftime("_%Y_%m_%d")
         run = wandb.init(entity=cfg.wandb.entity,
                          project=cfg.wandb.project,
                          config={key: value for key, value in cfg.items() if key != "wandb"},
@@ -129,7 +128,7 @@ def main(cfg):
          
         """
         
-        run_name = str(cfg.baseline._target_) + '_digital_pathology_' + time.strftime("_%Y_%m_%d") 
+        run_name = str(cfg.baseline._target_) + '_' + '_'.join(cfg.core.tags) + time.strftime("_%Y_%m_%d") 
         run = wandb.init(entity=cfg.wandb.entity,
                          project=cfg.wandb.project,
                          config={key: value for key, value in cfg.items() if key != "wandb"},
