@@ -1,0 +1,13 @@
+main:
+  _target_: dataset.fundus.FundusDataModule
+
+  batch_size:  256
+  root: '~/data/Fundus'
+  data_class: FundusRGData
+
+concept:
+  _target_: dataset.fundus.FundusDataModule
+
+  batch_size:  256
+  root: '~/data/Fundus'
+  data_class: FundusConceptData
