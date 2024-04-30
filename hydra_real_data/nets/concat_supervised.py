@@ -9,48 +9,31 @@ import torchmetrics
 import wandb
 
 
-class LEACE_end2end(pl.LightningModule):
-    def __init__(self, backbone, encoder, device, cfg_optim , num_classes=3, alpha_rate=0.05):
-        super(LEACE_end2end, self).__init__()
+class concatSupervised(pl.LightningModule):
+    def __init__(self, backbone, cfg_optim , num_classes=3):
+        super(concatSupervised, self).__init__()
         
         # self.automatic_optimization = True
 
         self.cfg_optim = cfg_optim
         self.backbone, self.num_features = backbone
-        self.encoder = encoder
-        self.encoder_features = self.encoder.linear_2concept.in_features # self.encoder.linear_2concept.out_features
-        
-        self.num_classes = num_classes
-        self.alpha = 1
-        self.alpha_rate = alpha_rate
-        
-        
-        self.joint_head = nn.Linear(self.num_features + 1, self.num_classes) #self.encoder_features
-        self.fitter = LeaceFitter(self.num_features, 1, dtype=torch.float, device=device)  #self.encoder_features,
+        self.num_classes = num_classes  
+        self.joint_head = nn.Linear(self.num_features + 1, self.num_classes) 
         
         self.test_accuracy = torchmetrics.Accuracy("multiclass", num_classes=self.num_classes)
         self.test_precision = torchmetrics.Precision(task="multiclass", average='macro', num_classes=self.num_classes)
         self.test_recall = torchmetrics.Recall(task="multiclass", average='macro', num_classes=self.num_classes)
         self.test_f1 = torchmetrics.F1Score(task="multiclass", num_classes=self.num_classes)
         self.test_confusion_matrix = torchmetrics.ConfusionMatrix(task="multiclass", num_classes=self.num_classes)
-        self.class_recall_metrics = {class_label: torchmetrics.Recall(task='binary') for class_label in range(self.num_classes)}
-        for param in self.encoder.parameters():
-            param.requires_grad = False
+        
         
 
-    def forward(self, x, z_c):
+    def forward(self, x, c):
         z_x = self.backbone(x)
         z_x = z_x.view(z_x.shape[0], -1)
-        self.fitter.update(z_x, z_c)
-        z_x_pro = self.fitter.eraser(z_x) 
-        z_x_hat = self.alpha * z_x + (1-self.alpha)*z_x_pro
-        joint_logits = self.joint_head(torch.cat([z_x_hat,z_c.view(z_x.shape[0], -1)], dim=1))
+        joint_logits = self.joint_head(torch.cat([z_x,c.view(z_x.shape[0], -1)], dim=1))
         return  joint_logits
         
-    def get_embedding(self, x):
-        z_x = self.backbone(x)
-        return self.fitter.eraser(z_x)
-
 
     def configure_optimizers(self):
         self.params = list(self.backbone.parameters()) + list(self.joint_head.parameters()) 
@@ -62,34 +45,25 @@ class LEACE_end2end(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
-        c_logits, z_embed = self.encoder(x)
-        final_logits = self(x,c)#c_logits)#z_embed) 
+        final_logits = self(x,c)
         loss = F.cross_entropy(final_logits,y)
-        self.log('informed_encoder/train_loss', loss)
-        wandb.log({'informed_encoder/train_loss': loss})
+        self.log('final_model/train_loss', loss)
+        wandb.log({'final_model/train_loss': loss})
         return loss
     
-    def on_train_epoch_end(self) -> None:
-        self.alpha -= self.alpha_rate
-        if self.alpha <0:
-            self.alpha = 0
-        return super().on_train_epoch_end()
 
     def validation_step(self, batch, batch_idx):
         x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
-        c_logits, z_embed = self.encoder(x)
-        final_logits = self(x,c)#c_logits)#z_embed) 
+        final_logits = self(x,c)
         loss = F.cross_entropy(final_logits,y)
-        wandb.log({'informed_encoder/val_loss': loss})
-        self.log('informed_encoder/val_loss', loss)
+        wandb.log({'final_model/val_loss': loss})
+        self.log('final_model/val_loss', loss)
 
     def test_step(self, batch, batch_idx):
         x, y, c = batch[0], batch[1].squeeze(), batch[2].squeeze()
-        c_logits, z_embed = self.encoder(x)
-        final_logits = self(x,c_logits)#z_embed) 
+        final_logits = self(x,c)
         loss = F.cross_entropy(final_logits,y)
-        pred = torch.softmax(final_logits, dim=-1) #normal testing
-        # pred = torch.softmax(logits_p, dim=-1) #spurious testing
+        pred = torch.softmax(final_logits, dim=-1) 
 
         self.test_accuracy(pred, y)
         self.test_precision(pred,y)
@@ -97,20 +71,13 @@ class LEACE_end2end(pl.LightningModule):
         self.test_f1(pred,y)
         self.test_confusion_matrix.update(pred, y)
         
-        for class_label in range(self.num_classes):
-            class_mask = (y == class_label)
-            class_outputs = pred[:, class_label]
-            class_targets_binary = class_mask.to(torch.float32).to(y.device)
-            self.class_recall_metrics[class_label].to(y.device)
-            self.class_recall_metrics[class_label](class_outputs, class_targets_binary)
 
         wandb.log({'final_model/test_loss': loss})
         wandb.log({'final_model/test_accuracy': self.test_accuracy.compute()})
         wandb.log({'final_model/test_precision': self.test_precision.compute()})
         wandb.log({'final_model/test_recall': self.test_recall.compute()})
         wandb.log({'final_model/test_f1': self.test_f1.compute()})
-        for class_label, metric in self.class_recall_metrics.items():
-            self.log(f"final_model/test_recall_{class_label}", metric.compute())
+
         
         self.log('final_model/test_loss', loss)
         self.log_dict(
