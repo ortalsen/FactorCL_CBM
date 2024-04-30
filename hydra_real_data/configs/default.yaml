@@ -8,7 +8,7 @@ defaults:
 - data: pathology
 - model@concept_model: concept_encoder
 - model@informed_model: informed_encoder
-- model@baseline: supervised
+- model@baseline: concat_supervised #supervised
 - optim@concept_optim: concept_optim
 - optim@informed_optim: informed_optim
 - optim@baseline_optim: baseline_optim
@@ -17,5 +17,5 @@ defaults:
 - wandb: default
 - _self_
 
-informed_exp: True #'False' for baseline to run
-num_eval: 3
+informed_exp: False #'False' for baseline to run
+num_eval: 2

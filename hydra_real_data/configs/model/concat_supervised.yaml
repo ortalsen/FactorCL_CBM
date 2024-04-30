@@ -1,0 +1,7 @@
+_target_: nets.concatSupervised
+
+backbone: 
+  _target_: nets.backbones.resnet18_backbone
+
+cfg_optim: '<OPTIM>'
+num_classes: 3
