@@ -1,11 +1,10 @@
-_target_: nets.LEACE_end2end 
+_target_: nets.LEACE_end2end #nets.InfoNCE_end2end #
 
 backbone: 
-  _target_: nets.backbones.resnet18_backbone
+  _target_: nets.backbones.custom_CNN #nets.backbones.resnet18_backbone #nets.backbones.mlp_backbone #nets.whitened_resnet.whitened_resnet18 #
   
 encoder: '<ENCODER>'
 cfg_optim: '<OPTIM>'
-num_classes: 3
-alpha_rate: 0.05
-lamb: 0.5 #0.5
+num_classes: 2
+alpha_rate: 0.1
 device: 'cuda'

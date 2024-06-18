@@ -1,0 +1,8 @@
+main:
+  _target_: dataset.combined_mnist.combined_mnist_DataModule
+  batch_size:  8
+
+concept:
+  _target_: dataset.combined_mnist.combined_mnist_DataModule
+  batch_size:  8
+  

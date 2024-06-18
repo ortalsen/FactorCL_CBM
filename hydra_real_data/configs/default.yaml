@@ -2,13 +2,17 @@ _version: 1.1
 core:
   _version: 0.0.1
   tags:
-    - digital_pathology
+    - Combined_mnist
+    # - '3_8_27_28_29_106_133'
+    # - has_eye_color
+    # - '5'
+    # - MINE_y_cond
     
 defaults:
-- data: pathology
+- data: combined_mnist #cub
 - model@concept_model: concept_encoder
 - model@informed_model: informed_encoder
-- model@baseline: concat_supervised #supervised
+- model@baseline: supervised #concat_supervised #
 - optim@concept_optim: concept_optim
 - optim@informed_optim: informed_optim
 - optim@baseline_optim: baseline_optim
@@ -17,5 +21,5 @@ defaults:
 - wandb: default
 - _self_
 
-informed_exp: False #'False' for baseline to run
-num_eval: 2
+informed_exp: True #'False' for baseline to run. 'True' for the informed experiments 
+num_eval: 1
